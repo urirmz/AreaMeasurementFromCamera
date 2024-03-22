@@ -63,7 +63,7 @@ namespace MedicionCamara
                 resultCode = camera.IMV_Open();
                 if (resultCode == IMV_OK && camera.IMV_IsOpen())
                 {
-                    setExposureTime(10000);
+                    setExposureTime(15000);
                     resultCode = camera.IMV_StartGrabbing();
                     if (resultCode == IMV_OK && camera.IMV_IsGrabbing())
                     {

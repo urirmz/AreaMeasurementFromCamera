@@ -1,5 +1,6 @@
 ﻿using OpenCvSharp;
 using System;
+using System.Collections.Generic;
 using static MVSDK_Net.IMVDefine;
 
 namespace MedicionCamara
@@ -7,15 +8,18 @@ namespace MedicionCamara
     public class VisionTools
     {
         private Mat matrix;
+        private Mat histogram;
         private Point[][] contours;
         private Point[][] hulls;
-        private KeyPoint[] keyPoints;
         private Rect regionOfInterest;
+        private VisionTools regionCalculation;
 
         public VisionTools() { }
 
-        public VisionTools(Mat existingMatrix) { matrix = existingMatrix.Clone(); }
-
+        public VisionTools(Mat existingMatrix) { 
+            matrix = existingMatrix.Clone(); 
+        }
+        
         public Mat getMatrix()
         {
             return matrix;
@@ -26,11 +30,6 @@ namespace MedicionCamara
             return contours;
         }        
 
-        public KeyPoint[] getBlobs()
-        {
-            return keyPoints;
-        }
-
         public Point[][] getHulls()
         {
             return hulls;
@@ -39,6 +38,11 @@ namespace MedicionCamara
         public Rect getRegionOfInterest()
         {
             return regionOfInterest;
+        }
+
+        public VisionTools getRegionCalculation()
+        {
+            return regionCalculation;
         }
 
         public PictureRectangle getRegionOfInterestAsPictureRectangle(System.Windows.Forms.PictureBox pictureBox)
@@ -84,6 +88,57 @@ namespace MedicionCamara
             return bitmap;
         }
 
+        public System.Drawing.Bitmap getHistogramAsBitmap()
+        {
+            double minValue;
+            double maxValue;
+            Cv2.MinMaxLoc(histogram, out minValue, out maxValue);
+
+            int width = 320;
+            int height = 160;
+            Mat render = new Mat(new Size(width, height), MatType.CV_8UC3, Scalar.All(255));
+            Scalar color = Scalar.All(60);
+
+            Mat scaledHistogram = histogram.Clone();
+            scaledHistogram = scaledHistogram * (maxValue != 0 ? height / maxValue : 0.0);
+
+            for (int i = 0; i < 256; ++i)
+            {
+                int binaryWidth = (int)((double)width / 256);
+                render.Rectangle
+                (
+                    new Point(i * binaryWidth, render.Rows - (int)scaledHistogram.Get<float>(i)),
+                    new Point((i + 1) * binaryWidth, render.Rows),
+                    color,
+                    -1
+                );
+            }
+
+            System.Drawing.Bitmap bitmap = null;
+            try
+            {
+                if (render.Type() == MatType.CV_8UC1)
+                {
+                    bitmap = new System.Drawing.Bitmap(render.Width, render.Height, (int)render.Step(), System.Drawing.Imaging.PixelFormat.Format8bppIndexed, render.Data);
+                    System.Drawing.Imaging.ColorPalette palette = bitmap.Palette;
+                    for (int i = 0; i <= 255; i++)
+                    {
+                        palette.Entries[i] = System.Drawing.Color.FromArgb(i, i, i);
+                    }
+                    bitmap.Palette = palette;
+                }
+                else
+                {
+                    bitmap = new System.Drawing.Bitmap(render.Width, render.Height, (int)render.Step(), System.Drawing.Imaging.PixelFormat.Format24bppRgb, render.Data);
+                }
+            }
+            catch
+            {
+                bitmap = new System.Drawing.Bitmap(width, height);
+            }
+            return bitmap;
+        }
+
         public Point[][] getLargestContours()
         {
             int quantity = contours.Length / 2;
@@ -123,24 +178,20 @@ namespace MedicionCamara
             return largestAreaHull;
         }
 
-        public KeyPoint getBiggestBlob()
+        public void blur()
         {
-            KeyPoint biggestBlob = keyPoints[0];
-            foreach (KeyPoint keyPoint in keyPoints)
+            try
             {
-                if (keyPoint.Size > biggestBlob.Size)
-                {
-                    biggestBlob = keyPoint;
-                }
+                matrix = matrix.GaussianBlur(new Size(5, 5), 0);
             }
-            return biggestBlob;
+            catch { }
         }
 
         public void binarize()
         {   
             try
             {
-                matrix = matrix.GaussianBlur(new Size(5, 5), 0);
+                blur();
                 matrix = matrix.Threshold(0, 255, ThresholdTypes.Otsu);
             }
             catch { }
@@ -154,7 +205,7 @@ namespace MedicionCamara
                 Range columns = new Range(regionOfInterest.Left, regionOfInterest.Right);
 
                 Mat binarized = matrix.SubMat(rows, columns);
-                binarized = binarized.GaussianBlur(new Size(5, 5), 0);
+                binarized = binarized.MedianBlur(9);
                 binarized = binarized.Threshold(0, 255, ThresholdTypes.Otsu);
 
                 matrix = new Mat(matrix.Size(), matrix.Type(), Scalar.White);
@@ -169,41 +220,10 @@ namespace MedicionCamara
             Cv2.EqualizeHist(matrix, matrix);
         }
 
-        public void setBlobs()
+        public string countBlackPixels()
         {
-            SimpleBlobDetector.Params parameters = new SimpleBlobDetector.Params
-            {
-                //MinDistBetweenBlobs = 10, // 10 pixels between blobs
-                //MinRepeatability = 1,
-
-                //MinThreshold = 100,
-                //MaxThreshold = 255,
-                //ThresholdStep = 5,
-
-                FilterByArea = true,
-                MinArea = 100, // 10 pixels squared
-                //MaxArea = 500,
-
-                FilterByCircularity = false,
-                //FilterByCircularity = true,
-                //MinCircularity = 0.001f,
-
-                FilterByConvexity = false,
-                //FilterByConvexity = true,
-                //MinConvexity = 0.001f,
-                //MaxConvexity = 10,
-
-                FilterByInertia = false,
-                //FilterByInertia = true,
-                //MinInertiaRatio = 0.001f,
-
-                FilterByColor = true,
-                BlobColor = 0
-            };
-            SimpleBlobDetector blobDetector = SimpleBlobDetector.Create(parameters);
-            keyPoints = blobDetector.Detect(matrix);
-
-            Cv2.DrawKeypoints(matrix, keyPoints, matrix, Scalar.Red, DrawMatchesFlags.DrawRichKeypoints);
+            int count = (matrix.Cols * matrix.Rows) - Cv2.CountNonZero(matrix);
+            return count.ToString() + " pixeles";
         }
 
         public void setMatrixFromFrame(IMV_Frame frame)
@@ -216,17 +236,24 @@ namespace MedicionCamara
             this.matrix = matrix.Clone();
         }
 
+        public void setHistogram()
+        {
+            histogram = new Mat();
+            Cv2.CalcHist
+            (
+                new Mat[] { matrix },
+                new int[] { 0 },
+                null,
+                histogram,
+                1,
+                new int[] { 256 },
+                new Rangef[] { new Rangef(0, 256) }
+            );
+        }
+
         public void setEdges()
         {
-            try
-            {
-                matrix = matrix.GaussianBlur(new Size(5, 5), 0);
-                Cv2.Canny(matrix, matrix, 100, 200);
-            }
-            catch
-            {
-                Cv2.Canny(matrix, matrix, 100, 200);
-            }            
+            Cv2.Canny(matrix, matrix, 100, 200);
         }
 
         public string setContours()
@@ -241,13 +268,16 @@ namespace MedicionCamara
                 method: ContourApproximationModes.ApproxSimple
             );
 
+            return "Contornos encontrados: " + contours.Length.ToString();
+        }
+
+        public void setHulls()
+        {
             hulls = new Point[contours.Length][];
             for (int i = 0; i < contours.Length; i++)
             {
                 hulls[i] = Cv2.ConvexHull(contours[i]);
             }
-
-            return "Contornos encontrados: " + contours.Length.ToString();
         }
 
         public string setContoursFromBinary()
@@ -261,19 +291,23 @@ namespace MedicionCamara
 
         public void setRegionOfInterest()
         {
-            VisionTools region = new VisionTools(matrix);
-            region.setEdges();
-            region.binarize();
-            region.setContours();
+            regionCalculation = new VisionTools(matrix);
+            regionCalculation.blur();
+            regionCalculation.setEdges();
+            regionCalculation.binarize();
+            regionCalculation.setContours();
+            regionCalculation.setHulls();
 
-            Point[][] largestHull = region.getLargestHull();
-            int x = int.MaxValue;
-            int y = int.MaxValue;
-            int maxX = int.MinValue;
-            int maxY = int.MinValue;
+            Point[][] largestHull = regionCalculation.getLargestHull();
 
             if (largestHull != null) 
             {
+
+                int x = int.MaxValue;
+                int y = int.MaxValue;
+                int maxX = int.MinValue;
+                int maxY = int.MinValue;
+
                 foreach (Point point in largestHull[0])
                 {
                     x = Math.Min(x, point.X);
@@ -291,12 +325,6 @@ namespace MedicionCamara
 
                 regionOfInterest = new Rect(x, y, maxX - x, maxY - y);
             }
-        }
-
-        public string countBlackPixels()
-        {
-            int count = (matrix.Cols * matrix.Rows) - Cv2.CountNonZero(matrix);
-            return count.ToString() + " pixeles";
         }
     }
 

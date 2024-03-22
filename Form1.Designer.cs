@@ -44,9 +44,11 @@
             this.button6 = new System.Windows.Forms.Button();
             this.label3 = new System.Windows.Forms.Label();
             this.textBox2 = new System.Windows.Forms.TextBox();
+            this.pictureBox3 = new System.Windows.Forms.PictureBox();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.pictureBox3)).BeginInit();
             this.SuspendLayout();
             // 
             // pictureBox1
@@ -62,7 +64,7 @@
             // 
             // button4
             // 
-            this.button4.Location = new System.Drawing.Point(508, 35);
+            this.button4.Location = new System.Drawing.Point(508, 72);
             this.button4.Name = "button4";
             this.button4.Size = new System.Drawing.Size(140, 30);
             this.button4.TabIndex = 32;
@@ -169,7 +171,7 @@
             // 
             // button5
             // 
-            this.button5.Location = new System.Drawing.Point(508, 71);
+            this.button5.Location = new System.Drawing.Point(508, 108);
             this.button5.Name = "button5";
             this.button5.Size = new System.Drawing.Size(140, 30);
             this.button5.TabIndex = 35;
@@ -179,7 +181,7 @@
             // 
             // button6
             // 
-            this.button6.Location = new System.Drawing.Point(508, 107);
+            this.button6.Location = new System.Drawing.Point(508, 144);
             this.button6.Name = "button6";
             this.button6.Size = new System.Drawing.Size(140, 30);
             this.button6.TabIndex = 36;
@@ -190,7 +192,7 @@
             // label3
             // 
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(540, 17);
+            this.label3.Location = new System.Drawing.Point(531, 9);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(96, 13);
             this.label3.TabIndex = 37;
@@ -200,17 +202,27 @@
             // 
             this.textBox2.BackColor = System.Drawing.SystemColors.ControlLightLight;
             this.textBox2.Font = new System.Drawing.Font("Microsoft Sans Serif", 9F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
-            this.textBox2.Location = new System.Drawing.Point(653, 12);
+            this.textBox2.Location = new System.Drawing.Point(508, 25);
             this.textBox2.Name = "textBox2";
             this.textBox2.ReadOnly = true;
-            this.textBox2.Size = new System.Drawing.Size(334, 21);
+            this.textBox2.Size = new System.Drawing.Size(140, 21);
             this.textBox2.TabIndex = 38;
+            // 
+            // pictureBox3
+            // 
+            this.pictureBox3.Location = new System.Drawing.Point(667, 12);
+            this.pictureBox3.Name = "pictureBox3";
+            this.pictureBox3.Size = new System.Drawing.Size(320, 160);
+            this.pictureBox3.SizeMode = System.Windows.Forms.PictureBoxSizeMode.AutoSize;
+            this.pictureBox3.TabIndex = 39;
+            this.pictureBox3.TabStop = false;
             // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(999, 499);
+            this.Controls.Add(this.pictureBox3);
             this.Controls.Add(this.textBox2);
             this.Controls.Add(this.label3);
             this.Controls.Add(this.button6);
@@ -230,6 +242,7 @@
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.pictureBox3)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -253,6 +266,7 @@
         private System.Windows.Forms.Button button6;
         private System.Windows.Forms.Label label3;
         private System.Windows.Forms.TextBox textBox2;
+        private System.Windows.Forms.PictureBox pictureBox3;
     }
 }
 

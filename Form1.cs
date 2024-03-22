@@ -11,6 +11,7 @@ namespace MedicionCamara
         private VisionTools vision;
         private Graphics cameraGraphics;
         private Graphics visionGraphics;
+        private Graphics histogramGraphics;
         private PictureRectangle rectangle;
 
         public Form1()
@@ -28,6 +29,7 @@ namespace MedicionCamara
 
             cameraGraphics = pictureBox1.CreateGraphics();
             visionGraphics = pictureBox2.CreateGraphics();
+            histogramGraphics = pictureBox3.CreateGraphics();
 
             textBox1.Text = cameras.getIMVVersion();
         }
@@ -167,7 +169,10 @@ namespace MedicionCamara
                 Bitmap image = cameras.getLastPictureAsBitmap();
                 if (image != null)
                 {
+                    vision.setMatrixFromFrame(cameras.getLastFrame());
+                    vision.setHistogram();
                     drawImageOnGraphics(ref cameraGraphics, pictureBox1, image);
+                    drawImageOnGraphics(ref histogramGraphics, pictureBox3, vision.getHistogramAsBitmap());
                 }
                 else
                 {
@@ -195,11 +200,12 @@ namespace MedicionCamara
         private void button5_Click(object sender, EventArgs e)
         {
             textBox1.Text = "Analizando contornos...";
-            vision.setMatrixFromFrame(cameras.getLastFrame());
             if (vision.getMatrix() != null)
             {
                 vision.setRegionOfInterest();
                 drawImageOnGraphics(ref visionGraphics, pictureBox2, vision.getMatrixAsBitmap());
+                drawImageOnGraphics(ref histogramGraphics, pictureBox3, vision.getRegionCalculation().getMatrixAsBitmap());
+                drawContoursOnGraphics(ref histogramGraphics, pictureBox3, vision.getRegionCalculation().getLargestHull(), Color.Blue);
                 if (vision.getRegionOfInterest().Width > 0 && vision.getRegionOfInterest().Height > 0)
                 {
                     try
@@ -236,6 +242,7 @@ namespace MedicionCamara
                     drawContoursOnGraphics(ref cameraGraphics, pictureBox1, vision.getContours(), Color.Green);
 
                     textBox2.Text = vision.countBlackPixels();
+                    pictureBox3.Image = null;
                     textBox1.Text = "Medición obtenida exitosamente";
                 }
                 else
