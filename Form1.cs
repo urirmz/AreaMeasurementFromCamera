@@ -160,6 +160,7 @@ namespace MedicionCamara
 
         private void button4_Click(object sender, EventArgs e)
         {
+            textBox1.Text = "Capturando imagen...";
             if (cameras.cameraIsReady())
             {
                 textBox1.Text = cameras.takePicture();
@@ -201,8 +202,15 @@ namespace MedicionCamara
                 drawImageOnGraphics(ref visionGraphics, pictureBox2, vision.getMatrixAsBitmap());
                 if (vision.getRegionOfInterest().Width > 0 && vision.getRegionOfInterest().Height > 0)
                 {
-                    drawRectangleOnGraphics(ref visionGraphics, vision.getRegionOfInterestAsPictureRectangle(pictureBox2), Color.Red);
-                    textBox1.Text = "Objeto encontrado";
+                    try
+                    {
+                        drawRectangleOnGraphics(ref visionGraphics, vision.getRegionOfInterestAsPictureRectangle(pictureBox2), Color.Red);
+                        textBox1.Text = "Objeto encontrado";
+                    }
+                    catch 
+                    {
+                        textBox1.Text = "Error al crear fotografía, vuelva a conectar la cámara";
+                    }
                 }
                 else
                 {
@@ -220,13 +228,14 @@ namespace MedicionCamara
             textBox1.Text = "Obteniendo medición...";
             if (vision.getMatrix() != null)
             {
-                if (vision.getRegionOfInterest() != null)
+                if (vision.getRegionOfInterest().Width > 0 && vision.getRegionOfInterest().Height > 0)
                 {
                     vision.binarizeRegionOfInterest();
                     drawImageOnGraphics(ref visionGraphics, pictureBox2, vision.getMatrixAsBitmap());
                     vision.setContoursFromBinary();
                     drawContoursOnGraphics(ref cameraGraphics, pictureBox1, vision.getContours(), Color.Green);
 
+                    textBox2.Text = vision.countBlackPixels();
                     textBox1.Text = "Medición obtenida exitosamente";
                 }
                 else

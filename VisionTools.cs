@@ -14,6 +14,8 @@ namespace MedicionCamara
 
         public VisionTools() { }
 
+        public VisionTools(Mat existingMatrix) { matrix = existingMatrix.Clone(); }
+
         public Mat getMatrix()
         {
             return matrix;
@@ -250,9 +252,8 @@ namespace MedicionCamara
 
         public string setContoursFromBinary()
         {
-            VisionTools binary = new VisionTools();
             Mat inversedMatrix = matrix.Threshold(127, 255, ThresholdTypes.BinaryInv);
-            binary.setMatrixFromExistingMatrix(inversedMatrix);
+            VisionTools binary = new VisionTools(inversedMatrix);
             string message = binary.setContours();
             contours = binary.getContours();
             return message;
@@ -260,8 +261,7 @@ namespace MedicionCamara
 
         public void setRegionOfInterest()
         {
-            VisionTools region = new VisionTools();
-            region.setMatrixFromExistingMatrix(matrix);
+            VisionTools region = new VisionTools(matrix);
             region.setEdges();
             region.binarize();
             region.setContours();
@@ -291,6 +291,12 @@ namespace MedicionCamara
 
                 regionOfInterest = new Rect(x, y, maxX - x, maxY - y);
             }
+        }
+
+        public string countBlackPixels()
+        {
+            int count = (matrix.Cols * matrix.Rows) - Cv2.CountNonZero(matrix);
+            return count.ToString() + " pixeles";
         }
     }
 
