@@ -84,34 +84,16 @@ namespace MedicionCamara
                 }
             }
         }
-        public void drawPolygonOnGraphics(ref Graphics graphics, PictureBox pictureBox, OpenCvSharp.Point[][] polygon, Color color)
+
+        public void drawThresholdOnHistogram(ref Graphics graphics, PictureBox pictureBox, int threshold, Color color)
         {
             Pen pen = new Pen(color, 3);
-            double scaleX = (double)pictureBox.Width / vision.getMatrix().Width;
-            double scaleY = (double)pictureBox.Height / vision.getMatrix().Height;
+            double scaleX = (double)pictureBox.Width / vision.get2DHistogram().Width;
 
-            for (int i = 1; i < polygon.Length; i++)
-            {
-                Point point1 = new Point((int)(polygon[i - 1][0].X * scaleX), (int)(polygon[i - 1][0].Y * scaleY));
-                Point point2 = new Point((int)(polygon[i][0].X * scaleX), (int)(polygon[i][0].Y * scaleY));
-                graphics.DrawLine(pen, point1, point2);
-            }
-        }
+            Point point1 = new Point((int)(threshold * scaleX), 0);
+            Point point2 = new Point((int)(threshold * scaleX), pictureBox.Height);
 
-        public void drawBlobsOnGraphics(ref Graphics graphics, PictureBox pictureBox, OpenCvSharp.KeyPoint[] keyPoints, Color color)
-        {
-            Pen pen = new Pen(color, 3);
-            double scaleX = (double)pictureBox.Width / vision.getMatrix().Width;
-            double scaleY = (double)pictureBox.Height / vision.getMatrix().Height;
-            
-            foreach (OpenCvSharp.KeyPoint keyPoint in keyPoints)
-            {
-                int x = (int) (scaleX * keyPoint.Pt.X);
-                int y = (int)(scaleY * keyPoint.Pt.Y);
-                int size = 200;
-                graphics.DrawRectangle(pen, x - (size / 2), y - (size / 2), size, size);
-            }
-
+            graphics.DrawLine(pen, point1, point2);
         }
 
         private void button1_Click(object sender, EventArgs e)
@@ -173,6 +155,7 @@ namespace MedicionCamara
                     vision.setHistogram();
                     drawImageOnGraphics(ref cameraGraphics, pictureBox1, image);
                     drawImageOnGraphics(ref histogramGraphics, pictureBox3, vision.getHistogramAsBitmap());
+                    drawThresholdOnHistogram(ref histogramGraphics, pictureBox3, vision.getThresholdValue(), Color.Red);
                 }
                 else
                 {

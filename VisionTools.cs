@@ -1,6 +1,5 @@
-﻿using OpenCvSharp;
-using System;
-using System.Collections.Generic;
+﻿using System;
+using OpenCvSharp;
 using static MVSDK_Net.IMVDefine;
 
 namespace MedicionCamara
@@ -9,6 +8,7 @@ namespace MedicionCamara
     {
         private Mat matrix;
         private Mat histogram;
+        private int histogramThreshold;
         private Point[][] contours;
         private Point[][] hulls;
         private Rect regionOfInterest;
@@ -63,80 +63,17 @@ namespace MedicionCamara
 
         public System.Drawing.Bitmap getMatrixAsBitmap()
         {
-            System.Drawing.Bitmap bitmap = null;
-            try
-            {
-                if (matrix.Type() == MatType.CV_8UC1)
-                {
-                    bitmap = new System.Drawing.Bitmap(matrix.Width, matrix.Height, (int)matrix.Step(), System.Drawing.Imaging.PixelFormat.Format8bppIndexed, matrix.Data);
-                    System.Drawing.Imaging.ColorPalette palette = bitmap.Palette;
-                    for (int i = 0; i <= 255; i++)
-                    {
-                        palette.Entries[i] = System.Drawing.Color.FromArgb(i, i, i);
-                    }
-                    bitmap.Palette = palette;
-                }
-                else
-                {
-                    bitmap = new System.Drawing.Bitmap(matrix.Width, matrix.Height, (int)matrix.Step(), System.Drawing.Imaging.PixelFormat.Format24bppRgb, matrix.Data);
-                }
-            }
-            catch
-            {
-                bitmap = new System.Drawing.Bitmap(1920, 1200);
-            }
-            return bitmap;
+            return matrixToBitmap(matrix);
         }
 
         public System.Drawing.Bitmap getHistogramAsBitmap()
         {
-            double minValue;
-            double maxValue;
-            Cv2.MinMaxLoc(histogram, out minValue, out maxValue);
+            return matrixToBitmap(get2DHistogram());
+        }
 
-            int width = 320;
-            int height = 160;
-            Mat render = new Mat(new Size(width, height), MatType.CV_8UC3, Scalar.All(255));
-            Scalar color = Scalar.All(60);
-
-            Mat scaledHistogram = histogram.Clone();
-            scaledHistogram = scaledHistogram * (maxValue != 0 ? height / maxValue : 0.0);
-
-            for (int i = 0; i < 256; ++i)
-            {
-                int binaryWidth = (int)((double)width / 256);
-                render.Rectangle
-                (
-                    new Point(i * binaryWidth, render.Rows - (int)scaledHistogram.Get<float>(i)),
-                    new Point((i + 1) * binaryWidth, render.Rows),
-                    color,
-                    -1
-                );
-            }
-
-            System.Drawing.Bitmap bitmap = null;
-            try
-            {
-                if (render.Type() == MatType.CV_8UC1)
-                {
-                    bitmap = new System.Drawing.Bitmap(render.Width, render.Height, (int)render.Step(), System.Drawing.Imaging.PixelFormat.Format8bppIndexed, render.Data);
-                    System.Drawing.Imaging.ColorPalette palette = bitmap.Palette;
-                    for (int i = 0; i <= 255; i++)
-                    {
-                        palette.Entries[i] = System.Drawing.Color.FromArgb(i, i, i);
-                    }
-                    bitmap.Palette = palette;
-                }
-                else
-                {
-                    bitmap = new System.Drawing.Bitmap(render.Width, render.Height, (int)render.Step(), System.Drawing.Imaging.PixelFormat.Format24bppRgb, render.Data);
-                }
-            }
-            catch
-            {
-                bitmap = new System.Drawing.Bitmap(width, height);
-            }
-            return bitmap;
+        public Mat get2DHistogram()
+        {
+            return histogram1DTo2D(histogram, 320, 160);
         }
 
         public Point[][] getLargestContours()
@@ -178,6 +115,11 @@ namespace MedicionCamara
             return largestAreaHull;
         }
 
+        public int getThresholdValue()
+        {            
+            return histogramThreshold;
+        }
+
         public void blur()
         {
             try
@@ -213,12 +155,7 @@ namespace MedicionCamara
                 binarized.CopyTo(matrix.RowRange(rows).ColRange(columns));
             }
             catch { }
-        }
-
-        public void equalize()
-        {
-            Cv2.EqualizeHist(matrix, matrix);
-        }
+        }        
 
         public string countBlackPixels()
         {
@@ -249,11 +186,12 @@ namespace MedicionCamara
                 new int[] { 256 },
                 new Rangef[] { new Rangef(0, 256) }
             );
+            setHistogramThreshold();
         }
 
         public void setEdges()
         {
-            Cv2.Canny(matrix, matrix, 100, 200);
+            Cv2.Canny(matrix, matrix, histogramThreshold, 200);
         }
 
         public string setContours()
@@ -325,6 +263,104 @@ namespace MedicionCamara
 
                 regionOfInterest = new Rect(x, y, maxX - x, maxY - y);
             }
+        }
+
+        public void setHistogramThreshold()
+        {
+            Mat smooth = smoothHistogram(histogram);
+
+            float minValue = float.MaxValue;
+            float maxValue = float.MinValue;
+            int maxValueIndex = 0;
+            histogramThreshold = 0;
+            int j = smooth.Rows - 5;
+            for (int i = 0; i < smooth.Rows - 4; i++)
+            {
+                if (smooth.Get<float>(i - 5) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i - 4) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i - 3) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i - 2) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i - 1) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i) < minValue && i < maxValueIndex &&
+                    smooth.Get<float>(i + 1) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i + 2) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i + 3) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i + 4) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i + 5) > smooth.Get<float>(i))
+                {
+                    histogramThreshold = i;
+                    minValue = smooth.Get<float>(i);
+                }
+                if (smooth.Get<float>(j) > maxValue)
+                {
+                    maxValueIndex = j;
+                    maxValue = smooth.Get<float>(j);
+                }
+                j--;
+            }
+        }
+
+        public static System.Drawing.Bitmap matrixToBitmap(Mat matrix)
+        {
+            System.Drawing.Bitmap bitmap = null;
+            try
+            {
+                if (matrix.Type() == MatType.CV_8UC1)
+                {
+                    bitmap = new System.Drawing.Bitmap(matrix.Width, matrix.Height, (int)matrix.Step(), System.Drawing.Imaging.PixelFormat.Format8bppIndexed, matrix.Data);
+                    System.Drawing.Imaging.ColorPalette palette = bitmap.Palette;
+                    for (int i = 0; i <= 255; i++)
+                    {
+                        palette.Entries[i] = System.Drawing.Color.FromArgb(i, i, i);
+                    }
+                    bitmap.Palette = palette;
+                }
+                else
+                {
+                    bitmap = new System.Drawing.Bitmap(matrix.Width, matrix.Height, (int)matrix.Step(), System.Drawing.Imaging.PixelFormat.Format24bppRgb, matrix.Data);
+                }
+            }
+            catch
+            {
+                bitmap = new System.Drawing.Bitmap(matrix.Width, matrix.Height);
+            }
+            return bitmap;
+        }
+
+        public static Mat histogram1DTo2D(Mat histogram, int width, int height)
+        {
+            double minValue;
+            double maxValue;
+            Cv2.MinMaxLoc(histogram, out minValue, out maxValue);
+
+            Mat render = new Mat(new Size(width, height), MatType.CV_8UC3, Scalar.All(255));
+            Scalar color = Scalar.All(60);
+            Mat scaledHistogram = histogram.Clone() * (maxValue != 0 ? height / maxValue : 0.0);
+
+            for (int i = 0; i < 256; ++i)
+            {
+                int columnWidth = (int)((double)width / 256);
+                render.Rectangle
+                (
+                    new Point(i * columnWidth, render.Rows - (int)scaledHistogram.Get<float>(i)),
+                    new Point((i + 1) * columnWidth, render.Rows),
+                    color,
+                    -1
+                );
+            }
+
+            return render;
+        }
+
+        public static Mat smoothHistogram(Mat histogram)
+        {
+            Mat smoothHistogram = histogram.Clone();
+            for (int i = 0; i < smoothHistogram.Rows - 4; i++)
+            {
+                float pixelAverage = (smoothHistogram.Get<float>(i) + smoothHistogram.Get<float>(i + 1) + smoothHistogram.Get<float>(i + 2) + smoothHistogram.Get<float>(i + 3) + smoothHistogram.Get<float>(i + 4)) / 5;
+                smoothHistogram.Set(i, pixelAverage);
+            }
+            return smoothHistogram;
         }
     }
 
