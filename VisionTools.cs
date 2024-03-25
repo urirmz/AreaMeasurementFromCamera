@@ -1,4 +1,6 @@
 ﻿using System;
+using System.Linq.Expressions;
+using System.Windows.Forms;
 using OpenCvSharp;
 using static MVSDK_Net.IMVDefine;
 
@@ -45,20 +47,9 @@ namespace MedicionCamara
             return regionCalculation;
         }
 
-        public PictureRectangle getRegionOfInterestAsPictureRectangle(System.Windows.Forms.PictureBox pictureBox)
+        public PictureRectangle getRegionOfInterestAsPictureRectangle(PictureBox pictureBox)
         {
-            double scaleX = (double)pictureBox.Width / matrix.Width;
-            double scaleY = (double)pictureBox.Height / matrix.Height;
-            int startX = (int)(regionOfInterest.X * scaleX);
-            int startY = (int)(regionOfInterest.Y * scaleY);
-            int endX = (int)(regionOfInterest.Width * scaleX) + startX;
-            int endY = (int)(regionOfInterest.Height * scaleY) + startY;
-
-            PictureRectangle pictureRectanle = new PictureRectangle();
-            pictureRectanle.start = new System.Drawing.Point(startX, startY);
-            pictureRectanle.end = new System.Drawing.Point(endX, endY);
-
-            return pictureRectanle;
+            return regionOfInterestToPictureRectangle(matrix, regionOfInterest, pictureBox);
         }
 
         public System.Drawing.Bitmap getMatrixAsBitmap()
@@ -76,48 +67,25 @@ namespace MedicionCamara
             return histogram1DTo2D(histogram, 320, 160);
         }
 
-        public Point[][] getLargestContours()
+        public Point[][] getLargestContour()
         {
-            int quantity = contours.Length / 2;
-
-            Array.Sort(contours, (x, y) => x.Length.CompareTo(y.Length));
-            Point[][] largestLengthContours = new Point[quantity][];
-            int j = contours.Length - 1;
-            for (int i = 0; i < largestLengthContours.Length; i++)
-            {
-                largestLengthContours[i] = contours[j];
-                j--;
-            }
-
-            Array.Sort(largestLengthContours, (x, y) => Cv2.ContourArea(x).CompareTo(Cv2.ContourArea(y)));
-            Point[][] largestAreaContours = new Point[quantity / 5][];
-            j = largestLengthContours.Length - 1;
-            for (int i = 0; i < largestAreaContours.Length; i++)
-            {
-                largestAreaContours[i] = largestLengthContours[j];
-                j--;
-            }
-
-            return largestAreaContours;
+            return largestContourInArray(contours);
         }
 
         public Point[][] getLargestHull()
         {
-            Point[][] largestAreaHull = null;
-
-            try
-            {
-                Array.Sort(hulls, (x, y) => Cv2.ContourArea(x).CompareTo(Cv2.ContourArea(y)));
-                largestAreaHull = new Point[][] { hulls[hulls.Length - 1] };
-            }            
-            catch { }
-
-            return largestAreaHull;
+            return largestContourInArray(hulls);
         }
 
         public int getThresholdValue()
         {            
             return histogramThreshold;
+        }
+
+        public string getBlackPixelCount()
+        {
+            int count = (matrix.Cols * matrix.Rows) - Cv2.CountNonZero(matrix);
+            return count.ToString() + " pixeles";
         }
 
         public void blur()
@@ -133,7 +101,6 @@ namespace MedicionCamara
         {   
             try
             {
-                blur();
                 matrix = matrix.Threshold(0, 255, ThresholdTypes.Otsu);
             }
             catch { }
@@ -146,22 +113,15 @@ namespace MedicionCamara
                 Range rows = new Range(regionOfInterest.Top, regionOfInterest.Bottom);
                 Range columns = new Range(regionOfInterest.Left, regionOfInterest.Right);
 
-                Mat binarized = matrix.SubMat(rows, columns);
-                binarized = binarized.MedianBlur(9);
-                binarized = binarized.Threshold(0, 255, ThresholdTypes.Otsu);
+                VisionTools subMatrix = new VisionTools(matrix.SubMat(rows, columns).MedianBlur(9));
+                subMatrix.setHistogram();
+                Mat binarized = subMatrix.getMatrix().Threshold(subMatrix.getThresholdValue(), 255, ThresholdTypes.Binary);
 
                 matrix = new Mat(matrix.Size(), matrix.Type(), Scalar.White);
-
                 binarized.CopyTo(matrix.RowRange(rows).ColRange(columns));
             }
             catch { }
         }        
-
-        public string countBlackPixels()
-        {
-            int count = (matrix.Cols * matrix.Rows) - Cv2.CountNonZero(matrix);
-            return count.ToString() + " pixeles";
-        }
 
         public void setMatrixFromFrame(IMV_Frame frame)
         {
@@ -232,6 +192,7 @@ namespace MedicionCamara
             regionCalculation = new VisionTools(matrix);
             regionCalculation.blur();
             regionCalculation.setEdges();
+            regionCalculation.blur();
             regionCalculation.binarize();
             regionCalculation.setContours();
             regionCalculation.setHulls();
@@ -302,7 +263,7 @@ namespace MedicionCamara
 
         public static System.Drawing.Bitmap matrixToBitmap(Mat matrix)
         {
-            System.Drawing.Bitmap bitmap = null;
+            System.Drawing.Bitmap bitmap;
             try
             {
                 if (matrix.Type() == MatType.CV_8UC1)
@@ -361,6 +322,37 @@ namespace MedicionCamara
                 smoothHistogram.Set(i, pixelAverage);
             }
             return smoothHistogram;
+        }
+
+        public static Point[][] largestContourInArray(Point[][] array)
+        {
+            Point[][] largestAreaContour = null;
+
+            try
+            {
+                Array.Sort(array, (x, y) => Cv2.ContourArea(x).CompareTo(Cv2.ContourArea(y)));
+                largestAreaContour = new Point[][] { array[array.Length - 1] };
+            }
+            catch { }
+
+            return largestAreaContour;
+        }
+
+        public static PictureRectangle regionOfInterestToPictureRectangle(Mat matrix, Rect regionOfInterest, PictureBox pictureBox)
+        {
+            double scaleX = (double)pictureBox.Width / matrix.Width;
+            double scaleY = (double)pictureBox.Height / matrix.Height;
+
+            int startX = (int)(regionOfInterest.X * scaleX);
+            int startY = (int)(regionOfInterest.Y * scaleY);
+            int endX = (int)(regionOfInterest.Width * scaleX) + startX;
+            int endY = (int)(regionOfInterest.Height * scaleY) + startY;
+
+            PictureRectangle pictureRectanle = new PictureRectangle();
+            pictureRectanle.start = new System.Drawing.Point(startX, startY);
+            pictureRectanle.end = new System.Drawing.Point(endX, endY);
+
+            return pictureRectanle;
         }
     }
 

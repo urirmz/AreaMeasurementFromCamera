@@ -224,7 +224,7 @@ namespace MedicionCamara
                     vision.setContoursFromBinary();
                     drawContoursOnGraphics(ref cameraGraphics, pictureBox1, vision.getContours(), Color.Green);
 
-                    textBox2.Text = vision.countBlackPixels();
+                    textBox2.Text = vision.getBlackPixelCount();
                     pictureBox3.Image = null;
                     textBox1.Text = "Medición obtenida exitosamente";
                 }
