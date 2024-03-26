@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Windows.Forms;
 using OpenCvSharp;
@@ -8,13 +9,13 @@ namespace MedicionCamara
 {    
     public class VisionTools
     {
-        private Mat matrix;
-        private Mat histogram;
+        private Mat matrix, histogram, undistortionMatrix, distortionCoefficients;
         private int histogramThreshold;
-        private Point[][] contours;
-        private Point[][] hulls;
+        private Point[][] contours, hulls;
         private Rect regionOfInterest;
         private VisionTools regionCalculation;
+        private Point2f[] chessCorners;
+        private float pixelsPerCm2;
 
         public VisionTools() { }
 
@@ -84,8 +85,7 @@ namespace MedicionCamara
 
         public string getBlackPixelCount()
         {
-            int count = (matrix.Cols * matrix.Rows) - Cv2.CountNonZero(matrix);
-            return count.ToString() + " pixeles";
+            return blackPixelsInMatrix(matrix).ToString() + " pixeles";
         }
 
         public void blur()
@@ -97,7 +97,7 @@ namespace MedicionCamara
             catch { }
         }
 
-        public void binarize()
+        public void binarizeOtsu()
         {   
             try
             {
@@ -126,6 +126,10 @@ namespace MedicionCamara
         public void setMatrixFromFrame(IMV_Frame frame)
         {
             matrix = new Mat((int)frame.frameInfo.height, (int)frame.frameInfo.width, MatType.CV_8UC1, frame.pData);
+            if (undistortionMatrix != null)
+            {
+                Cv2.Undistort(matrix, matrix, undistortionMatrix, distortionCoefficients);
+            }
         }
 
         public void setMatrixFromExistingMatrix(Mat matrix)
@@ -193,7 +197,7 @@ namespace MedicionCamara
             regionCalculation.blur();
             regionCalculation.setEdges();
             regionCalculation.blur();
-            regionCalculation.binarize();
+            regionCalculation.binarizeOtsu();
             regionCalculation.setContours();
             regionCalculation.setHulls();
 
@@ -228,37 +232,34 @@ namespace MedicionCamara
 
         public void setHistogramThreshold()
         {
-            Mat smooth = smoothHistogram(histogram);
+            histogramThreshold = thresholdFromHistogram(histogram);
+        }
 
-            float minValue = float.MaxValue;
-            float maxValue = float.MinValue;
-            int maxValueIndex = 0;
-            histogramThreshold = 0;
-            int j = smooth.Rows - 5;
-            for (int i = 0; i < smooth.Rows - 4; i++)
+        public bool setChessPattern()
+        {
+            Size patternSize = new Size(9, 6);
+            if (Cv2.FindChessboardCorners(matrix, patternSize, out chessCorners, ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage))
             {
-                if (smooth.Get<float>(i - 5) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i - 4) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i - 3) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i - 2) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i - 1) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i) < minValue && i < maxValueIndex &&
-                    smooth.Get<float>(i + 1) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i + 2) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i + 3) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i + 4) > smooth.Get<float>(i) &&
-                    smooth.Get<float>(i + 5) > smooth.Get<float>(i))
-                {
-                    histogramThreshold = i;
-                    minValue = smooth.Get<float>(i);
-                }
-                if (smooth.Get<float>(j) > maxValue)
-                {
-                    maxValueIndex = j;
-                    maxValue = smooth.Get<float>(j);
-                }
-                j--;
+                List<List<Point3f>> objectPoints = new List<List<Point3f>>();
+                List<List<Point2f>> imagePoints = new List<List<Point2f>>();
+
+                chessCorners = Cv2.CornerSubPix(matrix, chessCorners, new Size(11, 11), new Size(-1, -1), TermCriteria.Both(30, 0.001));
+                Cv2.DrawChessboardCorners(matrix, patternSize, chessCorners, true);
+                return true;
             }
+            return false;            
+        }
+
+        public string calibrate()
+        {
+            Cv2.SolvePnP
+            (
+            );
+            Cv2.CalibrateCamera
+            (
+
+            );
+            return "Calibrado con éxito a " + pixelsPerCm2 + " píxeles por cm2";
         }
 
         public static System.Drawing.Bitmap matrixToBitmap(Mat matrix)
@@ -353,6 +354,48 @@ namespace MedicionCamara
             pictureRectanle.end = new System.Drawing.Point(endX, endY);
 
             return pictureRectanle;
+        }
+
+        public static int blackPixelsInMatrix(Mat matrix)
+        {
+            return (matrix.Cols * matrix.Rows) - Cv2.CountNonZero(matrix);
+        }
+
+        public static int thresholdFromHistogram(Mat histogram)
+        {
+            Mat smooth = smoothHistogram(histogram);
+
+            int histogramThreshold = 0;
+            float minValue = float.MaxValue;
+            float maxValue = float.MinValue;
+            int maxValueIndex = 0;
+            int j = smooth.Rows - 5;
+            for (int i = 0; i < smooth.Rows - 4; i++)
+            {
+                if (smooth.Get<float>(i - 5) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i - 4) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i - 3) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i - 2) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i - 1) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i) < minValue && i < maxValueIndex &&
+                    smooth.Get<float>(i + 1) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i + 2) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i + 3) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i + 4) > smooth.Get<float>(i) &&
+                    smooth.Get<float>(i + 5) > smooth.Get<float>(i))
+                {
+                    histogramThreshold = i;
+                    minValue = smooth.Get<float>(i);
+                }
+                if (smooth.Get<float>(j) > maxValue)
+                {
+                    maxValueIndex = j;
+                    maxValue = smooth.Get<float>(j);
+                }
+                j--;
+            }
+
+            return histogramThreshold;
         }
     }
 

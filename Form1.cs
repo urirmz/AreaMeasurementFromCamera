@@ -13,6 +13,7 @@ namespace MedicionCamara
         private Graphics visionGraphics;
         private Graphics histogramGraphics;
         private PictureRectangle rectangle;
+        private bool calibrationMode;
 
         public Form1()
         {
@@ -26,6 +27,9 @@ namespace MedicionCamara
             dataGridView1.Rows[1].Cells[0].Value = "Serie";
             dataGridView1.Rows[2].Cells[0].Value = "Marca";
             dataGridView1.Rows[3].Cells[0].Value = "Modelo";
+
+            button8.Visible = false;
+            button9.Visible = false;
 
             cameraGraphics = pictureBox1.CreateGraphics();
             visionGraphics = pictureBox2.CreateGraphics();
@@ -96,6 +100,26 @@ namespace MedicionCamara
             graphics.DrawLine(pen, point1, point2);
         }
 
+        public void toggleCalibrationMode()
+        {
+            if (calibrationMode)
+            {
+                button7.Visible = true;
+                button8.Visible = false;
+                button9.Visible = false;
+
+                calibrationMode = false;
+            }
+            else
+            {
+                button7.Visible = false;
+                button8.Visible = true;
+                button9.Visible = true;
+
+                calibrationMode = true;
+            }
+        }
+
         private void button1_Click(object sender, EventArgs e)
         {
             textBox1.Text = "Buscando dispositivos...";
@@ -145,6 +169,7 @@ namespace MedicionCamara
         private void button4_Click(object sender, EventArgs e)
         {
             textBox1.Text = "Capturando imagen...";
+            textBox2.Text = null;
             if (cameras.cameraIsReady())
             {
                 textBox1.Text = cameras.takePicture();
@@ -152,10 +177,13 @@ namespace MedicionCamara
                 if (image != null)
                 {
                     vision.setMatrixFromFrame(cameras.getLastFrame());
-                    vision.setHistogram();
                     drawImageOnGraphics(ref cameraGraphics, pictureBox1, image);
-                    drawImageOnGraphics(ref histogramGraphics, pictureBox3, vision.getHistogramAsBitmap());
-                    drawThresholdOnHistogram(ref histogramGraphics, pictureBox3, vision.getThresholdValue(), Color.Red);
+                    if (!calibrationMode)
+                    {
+                        vision.setHistogram();
+                        drawImageOnGraphics(ref histogramGraphics, pictureBox3, vision.getHistogramAsBitmap());
+                        drawThresholdOnHistogram(ref histogramGraphics, pictureBox3, vision.getThresholdValue(), Color.Red);
+                    }
                 }
                 else
                 {
@@ -189,7 +217,7 @@ namespace MedicionCamara
                 drawImageOnGraphics(ref visionGraphics, pictureBox2, vision.getMatrixAsBitmap());
                 drawImageOnGraphics(ref histogramGraphics, pictureBox3, vision.getRegionCalculation().getMatrixAsBitmap());
                 drawContoursOnGraphics(ref histogramGraphics, pictureBox3, vision.getRegionCalculation().getLargestHull(), Color.Blue);
-                if (vision.getRegionOfInterest().Width > 0 && vision.getRegionOfInterest().Height > 0)
+                if (vision.getRegionOfInterest().Width > 0 && vision.getRegionOfInterest().Height > 0 && !calibrationMode)
                 {
                     try
                     {
@@ -237,6 +265,40 @@ namespace MedicionCamara
             {
                 textBox1.Text = "No hay ninguna imagen para binarizar";
             }
+        }
+
+        private void button7_Click(object sender, EventArgs e)
+        {
+            toggleCalibrationMode();
+            button4_Click(sender, e);
+            button5_Click(sender, e);
+            if (vision.getMatrix() != null)
+            {
+                if (vision.setChessPattern())
+                {
+                    textBox1.Text = "Patrón encontrado";
+                    drawImageOnGraphics(ref visionGraphics, pictureBox2, vision.getMatrixAsBitmap());
+                    return;
+                }
+            }
+            toggleCalibrationMode();
+            textBox1.Text = "No se encontró ningún patrón de calibración";
+        }
+
+        private void button8_Click(object sender, EventArgs e)
+        {
+            toggleCalibrationMode();
+        }
+
+        private void button9_Click(object sender, EventArgs e)
+        {
+            toggleCalibrationMode();
+
+            pictureBox1.Image = null;
+            pictureBox2.Image = null;
+            pictureBox3.Image = null;
+
+            textBox1.Text = "Calibración cancelada";
         }
     }
 }
