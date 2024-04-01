@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Windows.Forms;
 
@@ -14,6 +16,7 @@ namespace MedicionCamara
         private Graphics histogramGraphics;
         private PictureRectangle rectangle;
         private bool calibrationMode;
+        private List<MeasuredObject> measuredObjects;
 
         public Form1()
         {
@@ -21,6 +24,7 @@ namespace MedicionCamara
 
             cameras = new CameraManager();
             vision = new VisionTools();
+            measuredObjects = new List<MeasuredObject>();
 
             dataGridView1.Rows.Add(3);
             dataGridView1.Rows[0].Cells[0].Value = "Código";
@@ -30,6 +34,7 @@ namespace MedicionCamara
 
             button8.Visible = false;
             button9.Visible = false;
+            button13.Visible = false;
 
             cameraGraphics = pictureBox1.CreateGraphics();
             visionGraphics = pictureBox2.CreateGraphics();
@@ -100,19 +105,48 @@ namespace MedicionCamara
             graphics.DrawLine(pen, point1, point2);
         }
 
+        public void drawCalibrationPoints(ref Graphics graphics, PictureBox pictureBox, List<List<OpenCvSharp.Point2f>> calibrationPoints, Color color)
+        {
+            Pen pen = new Pen(color, 3);
+            double scaleX = (double)pictureBox.Width / vision.getMatrix().Width;
+            double scaleY = (double)pictureBox.Height / vision.getMatrix().Height;
+
+            foreach (List<OpenCvSharp.Point2f> vector in calibrationPoints)
+            {
+                for (int i = 1; i < vector.Count; i++)
+                {
+                    Point point1 = new Point((int)(vector[i - 1].X * scaleX), (int)(vector[i - 1].Y * scaleY));
+                    Point point2 = new Point((int)(vector[i].X * scaleX), (int)(vector[i].Y * scaleY));
+                    graphics.DrawLine(pen, point1, point2);
+                    graphics.DrawEllipse(pen, new RectangleF(point1.X - 3, point1.Y - 3, 6, 6));
+                }
+                graphics.DrawEllipse(pen, new RectangleF((float) (vector[vector.Count - 1].X * scaleX) - 3, (float)(vector[vector.Count - 1].Y * scaleY) - 3, 6, 6));
+            }
+        }
+
         public void toggleCalibrationMode()
         {
             if (calibrationMode)
             {
+                button4.Visible = true;
+                button5.Visible = true;
+                button6.Visible = true;
                 button7.Visible = true;
+
                 button8.Visible = false;
                 button9.Visible = false;
+
+                button8.Text = "Confirmar";
 
                 calibrationMode = false;
             }
             else
             {
+                button4.Visible = false;
+                button5.Visible = false;
+                button6.Visible = false;
                 button7.Visible = false;
+
                 button8.Visible = true;
                 button9.Visible = true;
 
@@ -173,11 +207,10 @@ namespace MedicionCamara
             if (cameras.cameraIsReady())
             {
                 textBox1.Text = cameras.takePicture();
-                Bitmap image = cameras.getLastPictureAsBitmap();
-                if (image != null)
+                vision.setMatrixFromFrame(cameras.getLastFrame());
+                if (vision.isReady())
                 {
-                    vision.setMatrixFromFrame(cameras.getLastFrame());
-                    drawImageOnGraphics(ref cameraGraphics, pictureBox1, image);
+                    drawImageOnGraphics(ref cameraGraphics, pictureBox1, vision.getMatrixAsBitmap());
                     if (!calibrationMode)
                     {
                         vision.setHistogram();
@@ -205,13 +238,14 @@ namespace MedicionCamara
         private void pictureBox1_MouseUp(object sender, MouseEventArgs e)
         {
             rectangle.end = pictureBox1.PointToClient(Cursor.Position);
-            drawRectangleOnGraphics(ref cameraGraphics, rectangle, Color.Red);
+            // Draw a rectangle when selecting the camera graphics
+            // drawRectangleOnGraphics(ref cameraGraphics, rectangle, Color.Red);
         }
 
         private void button5_Click(object sender, EventArgs e)
         {
             textBox1.Text = "Analizando contornos...";
-            if (vision.getMatrix() != null)
+            if (vision.isReady())
             {
                 vision.setRegionOfInterest();
                 drawImageOnGraphics(ref visionGraphics, pictureBox2, vision.getMatrixAsBitmap());
@@ -243,7 +277,7 @@ namespace MedicionCamara
         private void button6_Click(object sender, EventArgs e)
         {
             textBox1.Text = "Obteniendo medición...";
-            if (vision.getMatrix() != null)
+            if (vision.isReady())
             {
                 if (vision.getRegionOfInterest().Width > 0 && vision.getRegionOfInterest().Height > 0)
                 {
@@ -252,53 +286,138 @@ namespace MedicionCamara
                     vision.setContoursFromBinary();
                     drawContoursOnGraphics(ref cameraGraphics, pictureBox1, vision.getContours(), Color.Green);
 
-                    textBox2.Text = vision.getBlackPixelCount();
+                    textBox2.Text = vision.getObjectMeasurement();
                     pictureBox3.Image = null;
-                    textBox1.Text = "Medición obtenida exitosamente";
+                    textBox1.Text = "Medición obtenida";
+                    if (textBox2.Text != "Calibración requerida" && textBox2.Text != "Error en la medición")
+                    {
+                        button13.Visible = true;
+                    }
                 }
                 else
                 {
-                    textBox1.Text = "Es necesario buscar objetos antes de binarizar";
+                    textBox1.Text = "Es necesario buscar objetos antes de realizar medición";
                 }
             }
             else
             {
-                textBox1.Text = "No hay ninguna imagen para binarizar";
+                textBox1.Text = "No hay ningón objeto para medir";
             }
         }
 
         private void button7_Click(object sender, EventArgs e)
-        {
+        {            
             toggleCalibrationMode();
+            vision.dumpCalibration();
             button4_Click(sender, e);
             button5_Click(sender, e);
-            if (vision.getMatrix() != null)
+            if (vision.isReady())
             {
+                textBox1.Text = "Buscando patrón de calibración...";
                 if (vision.setChessPattern())
                 {
+                    drawCalibrationPoints(ref visionGraphics, pictureBox1, vision.getCalibrationPoints(), Color.Fuchsia);
                     textBox1.Text = "Patrón encontrado";
-                    drawImageOnGraphics(ref visionGraphics, pictureBox2, vision.getMatrixAsBitmap());
                     return;
                 }
             }
-            toggleCalibrationMode();
             textBox1.Text = "No se encontró ningún patrón de calibración";
+            toggleCalibrationMode();
         }
 
         private void button8_Click(object sender, EventArgs e)
         {
+            if (button8.Text == "Confirmar")
+            {
+                if (vision.lensCorrection())
+                {
+                    button8.Text = "Continuar";
+                    textBox1.Text = "Corrección de lente añadida, presione continuar";
+                    return;
+                }
+            }
+            else if (button8.Text == "Continuar") 
+            {
+                button4_Click(sender, e);
+                button5_Click(sender, e);
+                if (vision.isReady() && vision.setChessPattern())
+                {
+                    drawCalibrationPoints(ref visionGraphics, pictureBox1, vision.getCalibrationPoints(), Color.Orange);
+                    vision.setPixelsPerCm2();
+
+                    textBox1.Text = "Calibración concluida con valor: " + vision.getPixelsPerCm2().ToString() + " pixeles/cm2" ;
+                    toggleCalibrationMode();
+                    return;
+                }
+            }
+            vision.dumpCalibration();
             toggleCalibrationMode();
+            textBox1.Text = "Error en la calibración, vuelva a intentarlo";
         }
 
         private void button9_Click(object sender, EventArgs e)
         {
+            vision.dumpCalibration();
             toggleCalibrationMode();
+            button11_Click(sender, e);
 
+            textBox1.Text = "Calibración cancelada";
+        }
+
+        private void button10_Click(object sender, EventArgs e)
+        {
+            OpenFileDialog openFileDialog1 = new OpenFileDialog
+            {
+                RestoreDirectory = true,
+                Filter = "Images (*.BMP;*.JPG;*.GIF,*.PNG,*.TIFF)|*.BMP;*.JPG;*.GIF;*.PNG;*.TIFF"
+            };
+            
+            if (openFileDialog1.ShowDialog() == DialogResult.OK)
+            {
+                textBox3.Text = openFileDialog1.SafeFileName;
+                try
+                {
+                    vision.setMatrixFromFile(openFileDialog1.FileName);
+                    drawImageOnGraphics(ref cameraGraphics, pictureBox1, vision.getMatrixAsBitmap());
+
+                    vision.setHistogram();
+                    drawImageOnGraphics(ref histogramGraphics, pictureBox3, vision.getHistogramAsBitmap());
+                    drawThresholdOnHistogram(ref histogramGraphics, pictureBox3, vision.getThresholdValue(), Color.Red);
+                }
+                catch { textBox1.Text = "Error en archivo"; }
+            }            
+            else
+            {
+                textBox1.Text = "No es posible abrir archivo";
+            }
+        }
+
+        private void button11_Click(object sender, EventArgs e)
+        {
             pictureBox1.Image = null;
             pictureBox2.Image = null;
             pictureBox3.Image = null;
+            vision.reset();
 
-            textBox1.Text = "Calibración cancelada";
+            textBox1.Text = "Limpieza exitosa";
+        }
+
+        private void button12_Click(object sender, EventArgs e)
+        {
+            Form listWindow = new Form2(measuredObjects)
+            {
+                Visible = true,
+                Text = "Lista de objetos medidos"
+            };
+        }
+
+        private void button13_Click(object sender, EventArgs e)
+        {
+            MemoryStream image = new MemoryStream();
+            vision.getMatrixAsBitmap().Save(image, System.Drawing.Imaging.ImageFormat.Bmp);
+            measuredObjects.Add(new MeasuredObject(vision.getObjectMeasurementAsFloat(), image));
+            button13.Visible = false;
+            textBox1.Text = "Objecto agregado a la lista";
         }
     }
 }

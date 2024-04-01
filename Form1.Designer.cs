@@ -48,6 +48,11 @@
             this.button7 = new System.Windows.Forms.Button();
             this.button8 = new System.Windows.Forms.Button();
             this.button9 = new System.Windows.Forms.Button();
+            this.button10 = new System.Windows.Forms.Button();
+            this.textBox3 = new System.Windows.Forms.TextBox();
+            this.button11 = new System.Windows.Forms.Button();
+            this.button12 = new System.Windows.Forms.Button();
+            this.button13 = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.dataGridView1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.pictureBox2)).BeginInit();
@@ -250,11 +255,63 @@
             this.button9.UseVisualStyleBackColor = true;
             this.button9.Click += new System.EventHandler(this.button9_Click);
             // 
+            // button10
+            // 
+            this.button10.Location = new System.Drawing.Point(12, 492);
+            this.button10.Name = "button10";
+            this.button10.Size = new System.Drawing.Size(180, 30);
+            this.button10.TabIndex = 43;
+            this.button10.Text = "Cargar imagen desde archivo";
+            this.button10.UseVisualStyleBackColor = true;
+            this.button10.Click += new System.EventHandler(this.button10_Click);
+            // 
+            // textBox3
+            // 
+            this.textBox3.Location = new System.Drawing.Point(199, 498);
+            this.textBox3.Name = "textBox3";
+            this.textBox3.Size = new System.Drawing.Size(293, 20);
+            this.textBox3.TabIndex = 44;
+            // 
+            // button11
+            // 
+            this.button11.Location = new System.Drawing.Point(508, 492);
+            this.button11.Name = "button11";
+            this.button11.Size = new System.Drawing.Size(140, 30);
+            this.button11.TabIndex = 45;
+            this.button11.Text = "Limpiar";
+            this.button11.UseVisualStyleBackColor = true;
+            this.button11.Click += new System.EventHandler(this.button11_Click);
+            // 
+            // button12
+            // 
+            this.button12.Location = new System.Drawing.Point(702, 492);
+            this.button12.Name = "button12";
+            this.button12.Size = new System.Drawing.Size(140, 30);
+            this.button12.TabIndex = 46;
+            this.button12.Text = "Ver lista de medidos";
+            this.button12.UseVisualStyleBackColor = true;
+            this.button12.Click += new System.EventHandler(this.button12_Click);
+            // 
+            // button13
+            // 
+            this.button13.Location = new System.Drawing.Point(848, 492);
+            this.button13.Name = "button13";
+            this.button13.Size = new System.Drawing.Size(140, 30);
+            this.button13.TabIndex = 47;
+            this.button13.Text = "Agregar a lista";
+            this.button13.UseVisualStyleBackColor = true;
+            this.button13.Click += new System.EventHandler(this.button13_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(999, 499);
+            this.ClientSize = new System.Drawing.Size(999, 530);
+            this.Controls.Add(this.button13);
+            this.Controls.Add(this.button12);
+            this.Controls.Add(this.button11);
+            this.Controls.Add(this.textBox3);
+            this.Controls.Add(this.button10);
             this.Controls.Add(this.button9);
             this.Controls.Add(this.button8);
             this.Controls.Add(this.label2);
@@ -306,6 +363,11 @@
         private System.Windows.Forms.Button button7;
         private System.Windows.Forms.Button button8;
         private System.Windows.Forms.Button button9;
+        private System.Windows.Forms.Button button10;
+        private System.Windows.Forms.TextBox textBox3;
+        private System.Windows.Forms.Button button11;
+        private System.Windows.Forms.Button button12;
+        private System.Windows.Forms.Button button13;
     }
 }
 

@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq.Expressions;
+using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using OpenCvSharp;
 using static MVSDK_Net.IMVDefine;
@@ -9,18 +10,20 @@ namespace MedicionCamara
 {    
     public class VisionTools
     {
-        private Mat matrix, histogram, undistortionMatrix, distortionCoefficients;
-        private int histogramThreshold;
+        private Mat matrix, histogram;
+        private int threshold;
         private Point[][] contours, hulls;
         private Rect regionOfInterest;
         private VisionTools regionCalculation;
-        private Point2f[] chessCorners;
+        List<List<Point2f>> calibrationPoints;
+        private double[,] undistortionMatrix; 
+        private double[] distortionCoefficients;
         private float pixelsPerCm2;
 
         public VisionTools() { }
 
         public VisionTools(Mat existingMatrix) { 
-            matrix = existingMatrix.Clone(); 
+                matrix = existingMatrix.Clone();
         }
         
         public Mat getMatrix()
@@ -80,12 +83,40 @@ namespace MedicionCamara
 
         public int getThresholdValue()
         {            
-            return histogramThreshold;
+            return threshold;
         }
 
-        public string getBlackPixelCount()
+        public string getObjectMeasurement()
         {
-            return blackPixelsInMatrix(matrix).ToString() + " pixeles";
+            if (pixelsPerCm2 == 0)
+            {
+                return "Calibración requerida";
+            }
+            else
+            {
+                int blackPixels = blackPixelsInMatrix(matrix);
+                if (blackPixels > 0)
+                {
+                    float objectMeasurement = blackPixels / pixelsPerCm2;
+                    return objectMeasurement.ToString() + " cm2";
+                }
+                return "Error en la medición";
+            }            
+        }
+
+        public float getObjectMeasurementAsFloat()
+        {
+            return blackPixelsInMatrix(matrix) / pixelsPerCm2;
+        }
+
+        public List<List<Point2f>> getCalibrationPoints()
+        {
+            return calibrationPoints;
+        }
+
+        public float getPixelsPerCm2()
+        {
+            return pixelsPerCm2;
         }
 
         public void blur()
@@ -121,20 +152,105 @@ namespace MedicionCamara
                 binarized.CopyTo(matrix.RowRange(rows).ColRange(columns));
             }
             catch { }
-        }        
+        }
+
+        public bool isReady()
+        {
+            if (matrix != null)
+            {
+                return matrix.Cols > 0 && matrix.Rows > 0;
+            }
+            return false;
+        }
+
+        public bool lensCorrection()
+        {
+            try
+            {
+                Size patternSize = new Size(9, 6);
+                float lengthOfChessSquareInMm = 24.5f;
+
+                List<List<Point3f>> objectPoints = new List<List<Point3f>>() { new List<Point3f>() };
+
+                float pointX = 0, pointY = 0, pointZ = 0;
+                for (int i = 0; i < patternSize.Height; i++)
+                {
+                    for (int j = 0; j < patternSize.Width; j++)
+                    {
+                        Point3f newPoint = new Point3f(pointX, pointY, pointZ);
+                        objectPoints.ElementAt(0).Add(newPoint);
+                        pointX += lengthOfChessSquareInMm;
+                    }
+                    pointX = 0;
+                    pointY += lengthOfChessSquareInMm;
+                }
+
+                Size imageSize = new Size(matrix.Width, matrix.Height);
+                Vec3d[] rotationVector;
+                Vec3d[] traslationVector;
+
+                undistortionMatrix = new double[3, 3];
+                distortionCoefficients = new double[5];
+
+                Cv2.CalibrateCamera
+                (
+                    objectPoints,
+                    calibrationPoints,
+                    imageSize,
+                    undistortionMatrix,
+                    distortionCoefficients,
+                    out rotationVector,
+                    out traslationVector
+                );
+
+                return true;
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        public void dumpCalibration()
+        {
+            calibrationPoints = null;
+            undistortionMatrix = null;
+            distortionCoefficients = null;
+        }
+
+        public void reset()
+        {
+            dumpCalibration();
+            matrix = null;
+            histogram = null;
+            threshold = 0;
+            contours = null;
+            hulls = null;
+            regionCalculation = null;
+            pixelsPerCm2 = 0;
+    }
 
         public void setMatrixFromFrame(IMV_Frame frame)
         {
             matrix = new Mat((int)frame.frameInfo.height, (int)frame.frameInfo.width, MatType.CV_8UC1, frame.pData);
-            if (undistortionMatrix != null)
+            if (undistortionMatrix != null && distortionCoefficients != null)
             {
-                Cv2.Undistort(matrix, matrix, undistortionMatrix, distortionCoefficients);
+                try
+                {
+                    Mat original = matrix.Clone();
+                    Cv2.Undistort(original, matrix, InputArray.Create(undistortionMatrix), InputArray.Create(distortionCoefficients));
+
+                    int border = 50;
+                    Rect cleanArea = new Rect(border, border, original.Cols - (border * 2), original.Rows - (border * 2));
+                    matrix = original.Clone(cleanArea);
+                }
+                catch { }
             }
         }
 
-        public void setMatrixFromExistingMatrix(Mat matrix)
-        {
-            this.matrix = matrix.Clone();
+        public void setMatrixFromFile(string path)
+        {            
+            matrix = Cv2.ImRead(path, ImreadModes.Grayscale);
         }
 
         public void setHistogram()
@@ -155,7 +271,7 @@ namespace MedicionCamara
 
         public void setEdges()
         {
-            Cv2.Canny(matrix, matrix, histogramThreshold, 200);
+            Cv2.Canny(matrix, matrix, threshold, 200);
         }
 
         public string setContours()
@@ -194,6 +310,7 @@ namespace MedicionCamara
         public void setRegionOfInterest()
         {
             regionCalculation = new VisionTools(matrix);
+            regionCalculation.setHistogram();
             regionCalculation.blur();
             regionCalculation.setEdges();
             regionCalculation.blur();
@@ -232,34 +349,50 @@ namespace MedicionCamara
 
         public void setHistogramThreshold()
         {
-            histogramThreshold = thresholdFromHistogram(histogram);
+            threshold = thresholdFromHistogram(histogram);
         }
 
         public bool setChessPattern()
         {
             Size patternSize = new Size(9, 6);
+            Point2f[] chessCorners;
             if (Cv2.FindChessboardCorners(matrix, patternSize, out chessCorners, ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage))
             {
-                List<List<Point3f>> objectPoints = new List<List<Point3f>>();
-                List<List<Point2f>> imagePoints = new List<List<Point2f>>();
-
                 chessCorners = Cv2.CornerSubPix(matrix, chessCorners, new Size(11, 11), new Size(-1, -1), TermCriteria.Both(30, 0.001));
-                Cv2.DrawChessboardCorners(matrix, patternSize, chessCorners, true);
+                calibrationPoints = new List<List<Point2f>>
+                {
+                    chessCorners.ToList()
+                };
                 return true;
             }
             return false;            
         }
 
-        public string calibrate()
+        public void setPixelsPerCm2()
         {
-            Cv2.SolvePnP
-            (
-            );
-            Cv2.CalibrateCamera
-            (
+            Size patternSize = new Size(9, 6);
+            int widthSquares = patternSize.Width - 1;
+            int heightSquares = patternSize.Height - 1;
+            float lengthOfChessSquareInCm = 2.45f;
 
-            );
-            return "Calibrado con éxito a " + pixelsPerCm2 + " píxeles por cm2";
+            float cmWidth = lengthOfChessSquareInCm * widthSquares;
+            float cmHeight = lengthOfChessSquareInCm * heightSquares;
+
+            double x1 = calibrationPoints.ElementAt(0).ElementAt(0).X;
+            double y1 = calibrationPoints.ElementAt(0).ElementAt(0).Y;
+            double x2 = calibrationPoints.ElementAt(0).ElementAt(widthSquares).X;
+            double y2 = calibrationPoints.ElementAt(0).ElementAt(widthSquares).Y;
+
+            float pixelWidth = (float)Math.Sqrt(Math.Pow(x2 - x1, 2) + Math.Pow(y2 - y1, 2));
+
+            x2 = calibrationPoints.ElementAt(0).ElementAt(heightSquares * patternSize.Width).X;
+            y2 = calibrationPoints.ElementAt(0).ElementAt(heightSquares * patternSize.Width).Y;
+            float pixelHeight = (float)Math.Sqrt(Math.Pow(x2 - x1, 2) + Math.Pow(y2 - y1, 2));
+
+            float pixelsInPattern = pixelWidth * pixelHeight;
+            float cm2InPatten = cmWidth * cmHeight;
+
+            pixelsPerCm2 = pixelsInPattern / cm2InPatten;
         }
 
         public static System.Drawing.Bitmap matrixToBitmap(Mat matrix)
@@ -365,7 +498,7 @@ namespace MedicionCamara
         {
             Mat smooth = smoothHistogram(histogram);
 
-            int histogramThreshold = 0;
+            int threshold = 0;
             float minValue = float.MaxValue;
             float maxValue = float.MinValue;
             int maxValueIndex = 0;
@@ -384,7 +517,7 @@ namespace MedicionCamara
                     smooth.Get<float>(i + 4) > smooth.Get<float>(i) &&
                     smooth.Get<float>(i + 5) > smooth.Get<float>(i))
                 {
-                    histogramThreshold = i;
+                    threshold = i;
                     minValue = smooth.Get<float>(i);
                 }
                 if (smooth.Get<float>(j) > maxValue)
@@ -395,7 +528,7 @@ namespace MedicionCamara
                 j--;
             }
 
-            return histogramThreshold;
+            return threshold;
         }
     }
 
@@ -403,6 +536,28 @@ namespace MedicionCamara
     {
         public System.Drawing.Point start { get; set; }
         public System.Drawing.Point end { get; set; }        
+    }
+
+    public struct MeasuredObject
+    {
+        private float area;
+        private MemoryStream image;
+
+        public MeasuredObject(float area, MemoryStream image)
+        {
+            this.area = area;
+            this.image = image;
+        }
+
+        public float getArea()
+        {
+            return area;
+        }
+
+        public MemoryStream getImage()
+        {
+            return image;
+        }
     }
     
 }

@@ -14,9 +14,12 @@ namespace MedicionCamara
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
 
-            Form mainForm = new Form1();
-            mainForm.Text = "Medición con cámara iRayple A5201MU150";
-            Application.Run(mainForm);            
+            Form mainWindow = new Form1
+            {
+                Text = "Medición con cámara iRayple A5201MU150"
+            };
+
+            Application.Run(mainWindow);            
         }
     }
 }
