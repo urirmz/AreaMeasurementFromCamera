@@ -341,11 +341,11 @@ namespace MedicionCamara
                 button4_Click(sender, e);
                 button5_Click(sender, e);
                 if (vision.isReady() && vision.setChessPattern())
-                {
+                {                    
+                    vision.setPixelsPerMm2();
+                    drawImageOnGraphics(ref visionGraphics, pictureBox2, vision.getMatrixAsBitmap());
                     drawCalibrationPoints(ref visionGraphics, pictureBox1, vision.getCalibrationPoints(), Color.Orange);
-                    vision.setPixelsPerCm2();
-
-                    textBox1.Text = "Calibración concluida con valor: " + vision.getPixelsPerCm2().ToString() + " pixeles/cm2" ;
+                    textBox1.Text = "Calibración concluida con valor: " + vision.getPixelsPerMm2().ToString() + " pixeles/Mm2" ;
                     toggleCalibrationMode();
                     return;
                 }

@@ -26,7 +26,7 @@ namespace MedicionCamara
         {
             DataTable list = new DataTable();
             list.Columns.Add("No.", typeof(int));
-            list.Columns.Add("Área (cm2)", typeof(string));
+            list.Columns.Add("Área (mm2)", typeof(string));
 
             for (int i = 0; i < objects.Count; i++)
             {

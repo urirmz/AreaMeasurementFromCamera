@@ -18,7 +18,7 @@ namespace MedicionCamara
         List<List<Point2f>> calibrationPoints;
         private double[,] undistortionMatrix; 
         private double[] distortionCoefficients;
-        private float pixelsPerCm2;
+        private float pixelsPerMm2;
 
         public VisionTools() { }
 
@@ -88,7 +88,7 @@ namespace MedicionCamara
 
         public string getObjectMeasurement()
         {
-            if (pixelsPerCm2 == 0)
+            if (pixelsPerMm2 == 0)
             {
                 return "Calibración requerida";
             }
@@ -97,8 +97,8 @@ namespace MedicionCamara
                 int blackPixels = blackPixelsInMatrix(matrix);
                 if (blackPixels > 0)
                 {
-                    float objectMeasurement = blackPixels / pixelsPerCm2;
-                    return objectMeasurement.ToString() + " cm2";
+                    float objectMeasurement = blackPixels / pixelsPerMm2;
+                    return objectMeasurement.ToString() + " mm2";
                 }
                 return "Error en la medición";
             }            
@@ -106,7 +106,7 @@ namespace MedicionCamara
 
         public float getObjectMeasurementAsFloat()
         {
-            return blackPixelsInMatrix(matrix) / pixelsPerCm2;
+            return blackPixelsInMatrix(matrix) / pixelsPerMm2;
         }
 
         public List<List<Point2f>> getCalibrationPoints()
@@ -114,9 +114,9 @@ namespace MedicionCamara
             return calibrationPoints;
         }
 
-        public float getPixelsPerCm2()
+        public float getPixelsPerMm2()
         {
-            return pixelsPerCm2;
+            return pixelsPerMm2;
         }
 
         public void blur()
@@ -138,20 +138,16 @@ namespace MedicionCamara
         }
 
         public void binarizeRegionOfInterest()
-        {
-            try
-            {
-                Range rows = new Range(regionOfInterest.Top, regionOfInterest.Bottom);
-                Range columns = new Range(regionOfInterest.Left, regionOfInterest.Right);
+        {           
+            Range rows = new Range(regionOfInterest.Top, regionOfInterest.Bottom);
+            Range columns = new Range(regionOfInterest.Left, regionOfInterest.Right);
 
-                VisionTools subMatrix = new VisionTools(matrix.SubMat(rows, columns).MedianBlur(9));
-                subMatrix.setHistogram();
-                Mat binarized = subMatrix.getMatrix().Threshold(subMatrix.getThresholdValue(), 255, ThresholdTypes.Binary);
+            VisionTools subMatrix = new VisionTools(matrix.SubMat(rows, columns).MedianBlur(9));
+            subMatrix.setHistogram();
+            Mat binarized = subMatrix.getMatrix().Threshold(subMatrix.getThresholdValue(), 255, ThresholdTypes.Binary);
 
-                matrix = new Mat(matrix.Size(), matrix.Type(), Scalar.White);
-                binarized.CopyTo(matrix.RowRange(rows).ColRange(columns));
-            }
-            catch { }
+            matrix = new Mat(matrix.Size(), matrix.Type(), Scalar.White);
+            binarized.CopyTo(matrix.RowRange(rows).ColRange(columns));
         }
 
         public bool isReady()
@@ -227,7 +223,7 @@ namespace MedicionCamara
             contours = null;
             hulls = null;
             regionCalculation = null;
-            pixelsPerCm2 = 0;
+            pixelsPerMm2 = 0;
     }
 
         public void setMatrixFromFrame(IMV_Frame frame)
@@ -271,7 +267,8 @@ namespace MedicionCamara
 
         public void setEdges()
         {
-            Cv2.Canny(matrix, matrix, threshold, 200);
+            int range = 100;
+            Cv2.Canny(matrix, matrix, range, threshold + range);
         }
 
         public string setContours()
@@ -338,10 +335,10 @@ namespace MedicionCamara
 
                 int margin = 20;
 
-                x -= margin;
-                y -= margin;
-                maxX += margin;
-                maxY += margin;
+                x = Math.Max(x - margin, 0);
+                y = Math.Max(y - margin, 0);
+                maxX = Math.Min(maxX + margin, regionCalculation.getMatrix().Cols);
+                maxY = Math.Min(maxY + margin, regionCalculation.getMatrix().Cols); ;
 
                 regionOfInterest = new Rect(x, y, maxX - x, maxY - y);
             }
@@ -368,31 +365,18 @@ namespace MedicionCamara
             return false;            
         }
 
-        public void setPixelsPerCm2()
+        public void setPixelsPerMm2()
         {
-            Size patternSize = new Size(9, 6);
-            int widthSquares = patternSize.Width - 1;
-            int heightSquares = patternSize.Height - 1;
-            float lengthOfChessSquareInCm = 2.45f;
+            binarizeRegionOfInterest();
 
-            float cmWidth = lengthOfChessSquareInCm * widthSquares;
-            float cmHeight = lengthOfChessSquareInCm * heightSquares;
+            int widthBlackSquares = 5;
+            int heightBlackSquares = 7;
+            float lengthOfChessSquareInMm = 24.5f;
 
-            double x1 = calibrationPoints.ElementAt(0).ElementAt(0).X;
-            double y1 = calibrationPoints.ElementAt(0).ElementAt(0).Y;
-            double x2 = calibrationPoints.ElementAt(0).ElementAt(widthSquares).X;
-            double y2 = calibrationPoints.ElementAt(0).ElementAt(widthSquares).Y;
+            float blackMm2InPattern = widthBlackSquares * heightBlackSquares * (float) Math.Pow(lengthOfChessSquareInMm, 2);
+            float blackPixelsInPattern = blackPixelsInMatrix(matrix);
 
-            float pixelWidth = (float)Math.Sqrt(Math.Pow(x2 - x1, 2) + Math.Pow(y2 - y1, 2));
-
-            x2 = calibrationPoints.ElementAt(0).ElementAt(heightSquares * patternSize.Width).X;
-            y2 = calibrationPoints.ElementAt(0).ElementAt(heightSquares * patternSize.Width).Y;
-            float pixelHeight = (float)Math.Sqrt(Math.Pow(x2 - x1, 2) + Math.Pow(y2 - y1, 2));
-
-            float pixelsInPattern = pixelWidth * pixelHeight;
-            float cm2InPatten = cmWidth * cmHeight;
-
-            pixelsPerCm2 = pixelsInPattern / cm2InPatten;
+            pixelsPerMm2 = blackPixelsInPattern / blackMm2InPattern;
         }
 
         public static System.Drawing.Bitmap matrixToBitmap(Mat matrix)
@@ -491,7 +475,7 @@ namespace MedicionCamara
 
         public static int blackPixelsInMatrix(Mat matrix)
         {
-            return (matrix.Cols * matrix.Rows) - Cv2.CountNonZero(matrix);
+            return (matrix.Cols * matrix.Rows) - matrix.CountNonZero();
         }
 
         public static int thresholdFromHistogram(Mat histogram)
