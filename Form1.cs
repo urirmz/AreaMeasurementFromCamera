@@ -404,7 +404,7 @@ namespace MedicionCamara
 
         private void button12_Click(object sender, EventArgs e)
         {
-            Form listWindow = new Form2(measuredObjects)
+            new Form2(measuredObjects)
             {
                 Visible = true,
                 Text = "Lista de objetos medidos"

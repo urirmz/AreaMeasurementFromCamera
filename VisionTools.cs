@@ -356,10 +356,7 @@ namespace MedicionCamara
             if (Cv2.FindChessboardCorners(matrix, patternSize, out chessCorners, ChessboardFlags.AdaptiveThresh | ChessboardFlags.NormalizeImage))
             {
                 chessCorners = Cv2.CornerSubPix(matrix, chessCorners, new Size(11, 11), new Size(-1, -1), TermCriteria.Both(30, 0.001));
-                calibrationPoints = new List<List<Point2f>>
-                {
-                    chessCorners.ToList()
-                };
+                calibrationPoints = new List<List<Point2f>> { chessCorners.ToList() };
                 return true;
             }
             return false;            
@@ -525,11 +522,13 @@ namespace MedicionCamara
     public struct MeasuredObject
     {
         private float area;
+        private float amperes;
         private MemoryStream image;
 
         public MeasuredObject(float area, MemoryStream image)
         {
             this.area = area;
+            amperes = (float)(area * 0.00015);
             this.image = image;
         }
 
@@ -538,9 +537,19 @@ namespace MedicionCamara
             return area;
         }
 
+        public float getAmperes()
+        {
+            return amperes;
+        }
+
         public MemoryStream getImage()
         {
             return image;
+        }
+
+        public MeasuredObject clone()
+        {
+            return new MeasuredObject(area, image);
         }
     }
     
